@@ -49,5 +49,14 @@ jobs:
           git config user.name "acoes-fundamentalista-bot"
           git config user.email "actions@users.noreply.github.com"
           git add dados tickers
-          git diff --cached --quiet || git commit -m "coleta automatica $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git diff --cached --quiet && exit 0
+          git commit -m "coleta automatica $(date -u +'%Y-%m-%d %H:%M UTC')"
+          # download_fundamentals.py demora o bastante (150+ tickers no
+          # Yahoo Finance) pra alguém empurrar outro commit pro main
+          # enquanto o job roda -- rebase antes do push em vez de um git
+          # push cru, senão a rodada inteira (7+min de coleta) se perde
+          # com "! [rejected] ... (fetch first)" (aconteceu em 25/08,
+          # commit manual concorrente durante teste).
+          git fetch origin main
+          git rebase origin/main
           git push
