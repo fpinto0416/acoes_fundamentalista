@@ -59,6 +59,20 @@ artefato é só rodar o script de novo (ou puxar o commit automático do
 workflow) e republicar o `dados/panorama_de_alvos.html` direto, sem
 edição manual.
 
+## Roda em runner próprio (não GitHub-hosted) desde 28/08
+
+`coleta_diaria.yml` usa
+`runs-on: [self-hosted, self-hosted-acoes_fundamentalista]`. Migrado
+depois de 2 dias seguidos (27-28/08) de atraso grave na fila
+compartilhada do GitHub Actions em outro repo do usuário (ver
+`omqs_futuros_5tf/CLAUDE.md` pro relato completo — inclui o histórico do
+bug de `git push` concorrente desse repo também). Roda numa VPS dedicada
+(DigitalOcean, mesma máquina de `mia_telegram`, `api_OMQS`,
+`api_OMQS_futuros` e `opcoes-sinal-diario`). Secrets continuam nos GitHub
+Secrets deste repo, normal. Se o runner sumir do ar, ver a seção de
+troubleshooting no `CLAUDE.md` do `omqs_futuros_5tf` (mesmo procedimento
+pra qualquer um dos runners dessa VPS).
+
 ## Estrutura
 
 Ver `README.md`, seção "Estrutura", pra lista completa de arquivos.
