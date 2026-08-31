@@ -73,6 +73,11 @@ Secrets deste repo, normal. Se o runner sumir do ar, ver a seção de
 troubleshooting no `CLAUDE.md` do `omqs_futuros_5tf` (mesmo procedimento
 pra qualquer um dos runners dessa VPS).
 
+**31/08:** `on:schedule` removido de `coleta_diaria.yml` (disparo nativo
+do GitHub provou ser fonte de risco em outros repos da VPS, não rede de
+segurança — ver `omqs_futuros_5tf/CLAUDE.md`). `workflow_dispatch`
+continua disponível.
+
 ## Estrutura
 
 Ver `README.md`, seção "Estrutura", pra lista completa de arquivos.
