@@ -76,7 +76,23 @@ pra qualquer um dos runners dessa VPS).
 **31/08:** `on:schedule` removido de `coleta_diaria.yml` (disparo nativo
 do GitHub provou ser fonte de risco em outros repos da VPS, não rede de
 segurança — ver `omqs_futuros_5tf/CLAUDE.md`). `workflow_dispatch`
-continua disponível.
+continua disponível. Como o gatilho real agora é só o cron da VPS, o
+horário não vive mais no yml — fica só em `/etc/cron.d/gh-triggers` na
+VPS (ver nota abaixo pra horário atual).
+
+**01/09: movido pra madrugada (03:00 BRT), fora do cluster de fechamento.**
+Antes rodava 19:00 BRT, junto com mia_telegram/api_OMQS/api_OMQS_futuros
+no mesmo horário de fechamento da B3 — pedido do usuário pra não
+competir por recurso na VPS de 1GB. Como este job não depende de dado
+intradiário da B3 (só fundamentos do Yahoo Finance, que não mudam depois
+do fechamento), não tinha motivo real pra rodar logo após o pregão.
+Exigiu um fix antes de mover: `HOJE` em `download_fundamentals.py`
+calculava a data em **UTC**, não BRT — rodando de madrugada, UTC já
+tinha virado o dia seguinte, rotulando o snapshot com a data errada.
+Corrigido pra usar BRT e, quando rodar antes das 9h (mercado ainda
+fechado), assumir que está capturando o fechamento do **dia útil
+anterior** (`pd.tseries.offsets.BDay(1)`, pula fim de semana
+automaticamente — segunda de madrugada aponta pra sexta, não domingo).
 
 ## Estrutura
 

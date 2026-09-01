@@ -35,7 +35,7 @@ Para cada ticker, salva três coisas:
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import yfinance as yf
@@ -55,7 +55,20 @@ CSV_ANALYST = os.path.join(PASTA_DADOS, "analyst_insights.csv")
 for pasta in (PASTA_DADOS, PASTA_FINANCEIRO, PASTA_INSIGHTS):
     os.makedirs(pasta, exist_ok=True)
 
-HOJE = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+# BRT, nao UTC -- rodando de madrugada (03:00 BRT, desde 01/09) o horario
+# em UTC ja virou o dia seguinte (BRT = UTC-3, sem horario de verao), o
+# que rotularia o snapshot com a data errada. Alem disso, de madrugada o
+# pregao do dia ainda nao abriu, entao o fechamento que estamos
+# capturando eh do ultimo dia util anterior, nao do dia civil de hoje --
+# usa BDay(1) pra pular fim de semana automaticamente (segunda de manha
+# cedo -> sexta, nao domingo).
+_FUSO_BRT = timezone(timedelta(hours=-3))
+_agora_brt = datetime.now(_FUSO_BRT)
+if _agora_brt.hour < 9:  # antes da B3 abrir -- ainda "noite" do pregao anterior
+    _dia_referencia = (pd.Timestamp(_agora_brt.date()) - pd.tseries.offsets.BDay(1)).date()
+else:
+    _dia_referencia = _agora_brt.date()
+HOJE = _dia_referencia.strftime("%Y-%m-%d")
 TENTATIVAS = 3
 PAUSA_ENTRE_TICKERS = 0.4  # segundos, para não apanhar rate-limit do Yahoo
 
