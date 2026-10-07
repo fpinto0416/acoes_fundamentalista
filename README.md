@@ -22,6 +22,7 @@ armazenada.
 │   ├── update_tickers_ibra.py   # baixa a composição do IBrA direto da B3
 │   ├── download_fundamentals.py # coleta diária de fundamentos (yfinance)
 │   ├── gerar_panorama.py        # gera o painel HTML a partir dos CSVs do dia
+│   ├── analise_upside.py        # testa convergência preço→alvo (ver seção abaixo)
 │   └── _template_panorama.html  # template (CSS/JS) usado por gerar_panorama.py
 ├── tickers/
 │   └── ibra_composicao.csv      # universo de tickers (atualizado ~mensalmente)
@@ -30,7 +31,49 @@ armazenada.
     ├── analyst_insights.csv     # 1 linha/ticker/dia: preço-alvo (low/mean/high), recomendação
     ├── analyst_insights/        # por ticker: histórico de upgrades/downgrades e tendência de recomendação
     ├── financeiro/               # por ticker: DRE, balanço e fluxo de caixa (anual e trimestral)
+    ├── precos_historico.csv      # fechamento AJUSTADO diário (cache incremental p/ o beta)
+    ├── placar_upside.csv         # placar acumulado do teste de convergência
     └── panorama_de_alvos.html    # painel do último dia coletado (ver seção abaixo)
+```
+
+## Teste de convergência preço→alvo (`scripts/analise_upside.py`)
+
+Testa a hipótese "comprar os ativos mais distantes do alvo (maior upside)
+rende mais". O ponto todo do desenho é **separar convergência de beta**,
+porque as duas explicam o mesmo spread bruto mas preveem coisas diferentes:
+
+| | convergência | beta disfarçado |
+|---|---|---|
+| spread vs direção do mercado | inclinação ≈ 0 | inclinação > 0 |
+| intercepto (mercado parado) | positivo | ≈ 0 |
+| coef. do upside após controle | positivo | ≈ 0 |
+
+Três cuidados que o script toma e que mudam a resposta:
+
+1. **Beta fora da amostra.** Estimado nos 252 pregões que terminam *antes*
+   do início da janela de teste. Estimar dentro do período absorveria no
+   beta qualquer convergência ocorrida em dia de alta, viciando o teste
+   contra a hipótese.
+
+2. **Preço ajustado por proventos** (`auto_adjust=True`). O `preco_atual`
+   do `snapshot_diario.csv` vem de `info["currentPrice"]` — preço cru, sem
+   ajuste. Usá-lo subestima o retorno das pagadoras pesadas, que se
+   concentram na ponta de *baixo* upside, inflando o spread.
+
+3. **Dois benchmarks.** Ibovespa (convenção) e equal-weight do universo.
+   O Ibovespa é concentrado (top 5 ≈ 37%) e as cestas são equal-weight; se
+   as duas respostas divergirem, a divergência é o achado — significa fator
+   de tamanho/estilo, não convergência.
+
+Roda no fim da coleta diária (`continue-on-error`, nunca derruba a coleta)
+e acumula uma janela no `placar_upside.csv` a cada ~21 pregões. Com poucas
+janelas o resultado não tem poder estatístico; o script imprime quantas
+ainda faltam.
+
+```bash
+python scripts/analise_upside.py                    # horizonte padrão (21 pregões)
+HORIZONTE=63 python scripts/analise_upside.py       # janelas trimestrais
+PULAR_DOWNLOAD=1 python scripts/analise_upside.py   # só recalcula, sem rede
 ```
 
 ## O que é coletado todo dia

@@ -94,6 +94,35 @@ fechado), assumir que está capturando o fechamento do **dia útil
 anterior** (`pd.tseries.offsets.BDay(1)`, pula fim de semana
 automaticamente — segunda de madrugada aponta pra sexta, não domingo).
 
+## 07/10: teste de convergência preço→alvo (`analise_upside.py`)
+
+Primeira análise em cima do histórico acumulado. Testa "comprar o que está
+mais distante do alvo rende mais". Resultado da medição exploratória sobre
+as 6 primeiras semanas (24/08→06/10), **que não entrou no repo e não deve
+ser tratado como conclusão**: spread bruto de +50 pp entre decil de maior e
+menor upside, mas concentrado num único dia (05/10, universo +8,55%, 137 de
+148 em alta, domésticas +24% e exportadoras caindo). Cesta de maior upside
+tinha beta ~2,0 contra ~0,3 da outra ponta, e o spread correlacionou +0,975
+com a direção do mercado — padrão de beta, não de convergência.
+
+Três armadilhas encontradas no caminho, todas tratadas no script:
+
+- **Beta do Yahoo é inútil aqui.** O campo `beta` do `snapshot_diario.csv`
+  (5 anos mensal) deu 0,47 para uma cesta que realizou ~2,0. Não usar.
+- **Beta estimado dentro do período de teste vicia o resultado** contra a
+  hipótese de convergência (absorve no beta a convergência que ocorreu em
+  dia de alta). Por isso o script estima em janela anterior.
+- **`preco_atual` não é ajustado por proventos** — vem de
+  `info["currentPrice"]`. Toda análise feita direto em cima do
+  `analyst_insights.csv` herda esse viés, que infla o spread porque as
+  pagadoras se concentram na ponta de baixo upside. O script baixa série
+  própria com `auto_adjust=True` em `dados/precos_historico.csv`.
+- `dividend_yield` do snapshot é inconfiável (mediana 6,3%, máximo 71,3%).
+
+Nada disso está respondido: com janelas de 21 pregões faltam ~13 janelas
+pra ter poder. O placar (`dados/placar_upside.csv`) acumula sozinho a cada
+coleta. Ver `README.md` pra o desenho do teste.
+
 ## Estrutura
 
 Ver `README.md`, seção "Estrutura", pra lista completa de arquivos.

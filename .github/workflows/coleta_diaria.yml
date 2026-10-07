@@ -49,6 +49,16 @@ jobs:
       - name: Gerar panorama do dia (gerar_panorama.py)
         run: python scripts/gerar_panorama.py
 
+      # Teste de convergencia preco->alvo. Acumula uma janela no placar a
+      # cada ~21 pregoes; o poder estatistico cresce sozinho com o tempo.
+      # continue-on-error de proposito: este passo e acessorio e NUNCA
+      # pode derrubar a coleta do dia, que e o produto real do repo (e,
+      # com runner efemero, uma rodada perdida nao volta -- ver CLAUDE.md).
+      # O 1o run baixa ~4 anos x 152 tickers e demora; depois e incremental.
+      - name: Atualizar placar de convergencia (analise_upside.py)
+        continue-on-error: true
+        run: python scripts/analise_upside.py
+
       - name: Commit e push dos resultados
         run: |
           git config user.name "acoes-fundamentalista-bot"
