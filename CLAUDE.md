@@ -94,6 +94,35 @@ fechado), assumir que está capturando o fechamento do **dia útil
 anterior** (`pd.tseries.offsets.BDay(1)`, pula fim de semana
 automaticamente — segunda de madrugada aponta pra sexta, não domingo).
 
+## Análise alvo × retorno (artefato próprio, desde 23/10/2026)
+
+Segundo artefato do repo, separado do Panorama de Alvos: **Alvo × Retorno**
+(`https://claude.ai/artifact/1K8BfdZQD9FZgmeoqtbHzw`). Na data-base (padrão
+= data mais antiga de `analyst_insights.csv`, hoje 24/08/2026) ordena as
+ações pelos mesmos dois rankings do Panorama ("mais abaixo do alvo
+mínimo/médio", via `gerar_panorama.montar_registro_ativo`, sem
+reimplementar) e plota o desconto (x) contra o retorno total até o último
+pregão fechado (y, fechamento ajustado do yfinance, benchmark BOVA11).
+
+- Script: `scripts/analise_alvo_vs_retorno.py [--data-base AAAA-MM-DD] [--data-fim AAAA-MM-DD]`
+  → template `scripts/_template_alvo_retorno.html` (tokens `__MARCADOR__`)
+  → saída `dados/analise_alvo_vs_retorno.html`. Não editar o HTML à mão.
+- Pra atualizar: `git pull && python scripts/analise_alvo_vs_retorno.py` e
+  republicar `dados/analise_alvo_vs_retorno.html` **com o `url` acima**
+  (publicar sem `url` cria artefato novo e perde o link).
+- Não roda no cron; é sob demanda. Baixa preços do yfinance (~1 min).
+- Antes das 18h30 BRT o "último pregão fechado" é o dia anterior (a barra
+  do dia ainda é intraday).
+- Universo = tickers coletados na data-base, inclusive os que saíram do
+  IBrA depois (sem viés de sobrevivência). Entrada no fechamento da
+  data-base tem algumas horas de lookahead (alvo coletado depois do
+  fechamento). A página tem o modo "pregão seguinte" como robustez.
+- Resultado de 23/10/2026 (24/08→22/10, N=144): Spearman +0,38 (mínimo) e
+  +0,51 (médio), parcial sem tamanho/beta/setor +0,31/+0,45. Top 10 por
+  alvo médio +67% vs resto +30% vs BOVA11 +19% (p de permutação 0,004;
+  alvo mínimo 0,084). Uma janela só, em rali de small caps: precisa
+  repetir com outras datas-base antes de virar tese.
+
 ## Estrutura
 
 Ver `README.md`, seção "Estrutura", pra lista completa de arquivos.

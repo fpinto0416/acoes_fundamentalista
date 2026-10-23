@@ -1,0 +1,329 @@
+<title>Alvo × Retorno</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!--
+  ARQUIVO GERADO — NÃO EDITAR À MÃO.
+
+  Repo: github.com/fpinto0416/acoes_fundamentalista
+  Gerado por scripts/analise_alvo_vs_retorno.py a partir do template
+  scripts/_template_alvo_retorno.html (tokens __MARCADOR__ → valor).
+  Fonte: dados/analyst_insights.csv + dados/snapshot_diario.csv (data-base)
+  e preços ajustados do yfinance (retorno). Fórmula da distância idêntica à
+  do Panorama de Alvos (gerar_panorama.montar_registro_ativo).
+
+  Pra atualizar: git pull; python scripts/analise_alvo_vs_retorno.py
+  (opcional --data-base / --data-fim) e republicar
+  dados/analise_alvo_vs_retorno.html com o MESMO url do artefato
+  (ver CLAUDE.md do repo, seção "Análise alvo × retorno").
+-->
+<style>
+  /* Layout: coluna única de leitura; resumo → 2 painéis (dispersão + ranking) → ressalvas → referências */
+  :root {
+    --paper: #f5f6f4; --surface: #ffffff; --ink: #131c24; --ink-2: #55606b; --muted: #8b94a0;
+    --line: #dee2de; --line-strong: #c7ccc6;
+    --accent: #2d5ea6; --accent-tint: #dbe6f3; --accent-ink: #1c3f73;
+    --dot-rest: #a7aeb7; --bench: #a56a00;
+    --good: #0b7f0b; --critical: #c03434; --warning-tint: #fdecc8; --warning: #8a5800;
+    --muted-tint: #eceeec;
+    --shadow: 0 1px 2px rgba(19,28,36,0.06), 0 8px 24px -12px rgba(19,28,36,0.18);
+    --f-display: "IBM Plex Serif", Georgia, serif;
+    --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0f1318; --surface: #171d24; --ink: #eceef0; --ink-2: #b7c0c9; --muted: #7c8792;
+      --line: #2a323c; --line-strong: #3a4350;
+      --accent: #7aa9e6; --accent-tint: #24374f; --accent-ink: #bcd4f2;
+      --dot-rest: #5d6773; --bench: #e0ab3d;
+      --good: #3fbf4a; --critical: #e8746c; --warning-tint: #3a2e12; --warning: #e0ab3d;
+      --muted-tint: #232a32;
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0f1318; --surface: #171d24; --ink: #eceef0; --ink-2: #b7c0c9; --muted: #7c8792;
+    --line: #2a323c; --line-strong: #3a4350;
+    --accent: #7aa9e6; --accent-tint: #24374f; --accent-ink: #bcd4f2;
+    --dot-rest: #5d6773; --bench: #e0ab3d;
+    --good: #3fbf4a; --critical: #e8746c; --warning-tint: #3a2e12; --warning: #e0ab3d;
+    --muted-tint: #232a32;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--f-body); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding-block: 44px 72px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+  .masthead { display: flex; flex-direction: column; gap: 10px; padding-bottom: 26px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+  .eyebrow { font-family: var(--f-mono); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(1.8rem, 4vw, 2.5rem); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  .dek { font-size: 1.02rem; color: var(--ink-2); max-width: 64ch; line-height: 1.55; margin: 0; }
+  .meta-row { display: flex; flex-wrap: wrap; gap: 6px 20px; font-family: var(--f-mono); font-size: 0.78rem; color: var(--muted); }
+  .meta-row b { color: var(--ink-2); font-weight: 600; }
+
+  .verdict { background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--bench); border-radius: 10px; padding: 18px 20px; margin-bottom: 28px; box-shadow: var(--shadow); }
+  .verdict h2 { font-family: var(--f-display); font-size: 1.1rem; margin: 0 0 8px; }
+  .verdict p { margin: 0; line-height: 1.6; color: var(--ink-2); max-width: 78ch; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; margin-bottom: 18px; font-size: 0.84rem; color: var(--ink-2); }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .seg button { font: 600 0.8rem var(--f-mono); padding: 7px 12px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--line-strong); }
+  .seg button[aria-pressed="true"] { background: var(--accent-tint); color: var(--accent-ink); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+  .panels { display: grid; gap: 28px; margin-bottom: 40px; }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; min-width: 0; }
+  .panel-head { padding: 20px 22px 14px; border-bottom: 1px solid var(--line); }
+  .panel-title { font-family: var(--f-display); font-weight: 600; font-size: 1.2rem; margin: 0; }
+  .panel-sub { font-size: 0.84rem; color: var(--muted); margin: 4px 0 0; max-width: 70ch; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+  .stat { background: var(--surface); padding: 14px 18px; display: flex; flex-direction: column; gap: 3px; }
+  .stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+  .stat-value { font-family: var(--f-mono); font-size: 1.25rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat-note { font-family: var(--f-mono); font-size: 0.7rem; color: var(--muted); }
+
+  .chart-box { position: relative; padding: 14px 10px 6px; }
+  .chart-box svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0 22px 14px; font-size: 0.76rem; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .sw-line { width: 18px; height: 0; border-top: 2px dashed; display: inline-block; }
+  .tip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; padding: 9px 11px; font-size: 0.76rem; box-shadow: var(--shadow); min-width: 170px; z-index: 5; }
+  .tip b { font-family: var(--f-mono); font-size: 0.86rem; }
+  .tip .row { display: flex; justify-content: space-between; gap: 14px; font-family: var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .tip .nm { color: var(--muted); font-size: 0.7rem; margin-bottom: 4px; }
+
+  details.rank { border-top: 1px solid var(--line); }
+  details.rank summary { cursor: pointer; padding: 14px 22px; font-weight: 600; font-size: 0.88rem; color: var(--accent-ink); }
+  details.rank summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .table-scroll { overflow-x: auto; max-height: 460px; overflow-y: auto; border-top: 1px solid var(--line); }
+  table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+  th, td { padding: 7px 12px; text-align: right; white-space: nowrap; font-family: var(--f-mono); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); }
+  th { position: sticky; top: 0; background: var(--surface); color: var(--muted); font-family: var(--f-body); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  td.l, th.l { text-align: left; }
+  tr.top td { background: var(--accent-tint); }
+  tr.top td:first-child { color: var(--accent-ink); font-weight: 700; }
+  .pos { color: var(--good); } .neg { color: var(--critical); }
+
+  .notes { display: grid; gap: 22px; margin-bottom: 36px; }
+  .notes h2 { font-family: var(--f-display); font-weight: 600; font-size: 1.3rem; margin: 0 0 8px; }
+  .notes ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.55; color: var(--ink-2); max-width: 80ch; }
+  .notes li b { color: var(--ink); }
+  .foot { border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 8px; font-size: 0.8rem; color: var(--muted); line-height: 1.6; }
+  .foot code { font-family: var(--f-mono); background: var(--muted-tint); padding: 1px 5px; border-radius: 4px; color: var(--ink-2); word-break: break-all; }
+  .foot a { color: var(--accent); }
+  @media (prefers-reduced-motion: no-preference) { circle.pt { transition: r 120ms ease; } }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <span class="eyebrow">Projeto Ações · Análise Fundamentalista</span>
+    <h1>Desconto ao preço-alvo × retorno realizado</h1>
+    <p class="dek">Em __DATA_BASE_FMT__, a primeira data do histórico, quanto cada ação do IBrA estava abaixo do preço-alvo
+      dos analistas, e quanto ela rendeu daí até __DATA_FIM_FMT__. Os rankings usam exatamente a régua do Panorama de Alvos.</p>
+    <div class="meta-row">
+      <span>Data-base: <b>__DATA_BASE_FMT__</b></span>
+      <span>Até: <b>__DATA_FIM_FMT__</b> (último pregão fechado)</span>
+      <span id="meta-n"></span>
+      <span>Gerado em __GERADO_EM__</span>
+    </div>
+  </header>
+
+  <section class="verdict" id="verdict"></section>
+
+  <div class="controls">
+    <span>Entrada no</span>
+    <div class="seg" role="group" aria-label="Pregão de entrada">
+      <button type="button" id="btn-d0" aria-pressed="true">fechamento da data-base</button>
+      <button type="button" id="btn-d1" aria-pressed="false">pregão seguinte</button>
+    </div>
+    <span style="color:var(--muted)">o alvo era coletado depois do fechamento; entrar no dia seguinte elimina essas horas de vantagem</span>
+  </div>
+
+  <section class="panels">
+    <div class="panel" id="panel-low">
+      <div class="panel-head">
+        <h2 class="panel-title">Mais abaixo do preço-alvo mínimo</h2>
+        <p class="panel-sub">Eixo x: (target low − preço) / preço em __DATA_BASE_FMT__. Eixo y: retorno total (com proventos) até __DATA_FIM_FMT__.</p>
+      </div>
+      <div class="stats" id="stats-low"></div>
+      <div class="chart-box" id="chart-low"></div>
+      <div class="legend" id="legend-low"></div>
+      <details class="rank"><summary id="sum-low">Ranking completo da data-base</summary><div class="table-scroll" id="table-low"></div></details>
+    </div>
+    <div class="panel" id="panel-mean">
+      <div class="panel-head">
+        <h2 class="panel-title">Mais abaixo do preço-alvo médio</h2>
+        <p class="panel-sub">Eixo x: (target mean − preço) / preço em __DATA_BASE_FMT__. Eixo y: retorno total (com proventos) até __DATA_FIM_FMT__.</p>
+      </div>
+      <div class="stats" id="stats-mean"></div>
+      <div class="chart-box" id="chart-mean"></div>
+      <div class="legend" id="legend-mean"></div>
+      <details class="rank"><summary id="sum-mean">Ranking completo da data-base</summary><div class="table-scroll" id="table-mean"></div></details>
+    </div>
+  </section>
+
+  <section class="notes">
+    <div>
+      <h2>Como ler e o que não dá pra concluir</h2>
+      <ul id="caveats"></ul>
+    </div>
+  </section>
+
+  <footer class="foot" id="foot"></footer>
+</div>
+
+<script>
+const D = __DADOS_JSON__;
+const pct = (v, c = 1) => v == null ? "—" : (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(c).replace(".", ",") + "%";
+const num = (v, c = 2) => v == null ? "—" : v.toFixed(c).replace(".", ",").replace("-", "−");
+const pv = v => v < 0.001 ? "<0,001" : v.toFixed(3).replace(".", ",");
+const fmtD = iso => iso.split("-").reverse().join("/");
+const cls = v => v >= 0 ? "pos" : "neg";
+let modo = "d0";
+
+function stats(k) { return modo === "d0" ? D[k].stats : D[k].stats_d1; }
+function retOf(r) { return modo === "d0" ? r.ret : r.ret_d1; }
+
+function renderStats(k) {
+  const s = stats(k);
+  document.getElementById("stats-" + k).innerHTML = [
+    ["Top 10 · média", pct(s.top_media), `mediana ${pct(s.top_mediana)}`],
+    ["Resto · média", pct(s.resto_media), `mediana ${pct(s.resto_mediana)}`],
+    [D.bench, pct(s.bench), `${s.top_batem_bench} de 10 do Top 10 batem`],
+    ["Spearman (todos)", num(s.spearman, 3), `p = ${pv(s.p_spearman)} · N = ${s.n}`],
+    ["Top 10 vs sorteio", `p = ${pv(s.p_perm)}`, "10 mil Top 10 aleatórios"],
+    ["Spearman parcial", num(s.spearman_parcial, 3), `p = ${pv(s.p_parcial)} · sem tamanho, beta, setor`],
+  ].map(([l, v, n]) => `<div class="stat"><span class="stat-label">${l}</span><span class="stat-value">${v}</span><span class="stat-note">${n}</span></div>`).join("");
+}
+
+function niceTicks(min, max, n) {
+  const span = max - min, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n) || mag * 10;
+  const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(10));
+  return out;
+}
+
+function renderChart(k) {
+  const box = document.getElementById("chart-" + k);
+  const xKey = k === "low" ? "dist_low" : "dist_mean";
+  const rows = D[k].ranking, s = stats(k);
+  const W = 960, H = 470, m = { l: 62, r: 22, t: 16, b: 50 };
+  const xs = rows.map(r => r[xKey]), ys = rows.map(retOf);
+  const pad = (a, b) => [a - (b - a) * 0.05, b + (b - a) * 0.05];
+  const [x0, x1] = pad(Math.min(...xs, 0), Math.max(...xs));
+  const [y0, y1] = pad(Math.min(...ys, s.bench, 0), Math.max(...ys, s.bench));
+  const X = v => m.l + (v - x0) / (x1 - x0) * (W - m.l - m.r);
+  const Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  const xt = niceTicks(x0, x1, 8), yt = niceTicks(y0, y1, 7);
+  let g = "";
+  yt.forEach(t => { g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--line)" stroke-width="1"/>
+    <text x="${m.l - 10}" y="${Y(t) + 4}" text-anchor="end" font-size="12" fill="var(--muted)" font-family="var(--f-mono)">${pct(t, 0)}</text>`; });
+  xt.forEach(t => { g += `<line x1="${X(t)}" x2="${X(t)}" y1="${H - m.b}" y2="${H - m.b + 5}" stroke="var(--line-strong)"/>
+    <text x="${X(t)}" y="${H - m.b + 20}" text-anchor="middle" font-size="12" fill="var(--muted)" font-family="var(--f-mono)">${pct(t, 0)}</text>`; });
+  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-2)" stroke-width="1.2"/>`;
+  if (x0 < 0) g += `<line x1="${X(0)}" x2="${X(0)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--line-strong)" stroke-width="1"/>`;
+  g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(s.bench)}" y2="${Y(s.bench)}" stroke="var(--bench)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="${W - m.r}" y="${Y(s.bench) - 7}" text-anchor="end" font-size="12" font-weight="600" fill="var(--bench)" font-family="var(--f-mono)">${D.bench} ${pct(s.bench)}</text>`;
+  const ra = x0, rb = x1;
+  g += `<line x1="${X(ra)}" x2="${X(rb)}" y1="${Y(s.intercept + s.slope * ra)}" y2="${Y(s.intercept + s.slope * rb)}" stroke="var(--ink-2)" stroke-width="2" stroke-dasharray="2 4" stroke-linecap="round"/>`;
+  g += `<text x="${(W + m.l) / 2}" y="${H - 8}" text-anchor="middle" font-size="12.5" fill="var(--ink-2)">quanto estava abaixo do alvo ${k === "low" ? "mínimo" : "médio"} em ${fmtD(D.data_base)} →</text>`;
+  g += `<text transform="translate(16 ${(H - m.b + m.t) / 2}) rotate(-90)" text-anchor="middle" font-size="12.5" fill="var(--ink-2)">retorno até ${fmtD(D.data_fim)}</text>`;
+  const ordem = rows.map((r, i) => i).sort((a, b) => (rows[a].rank <= 10) - (rows[b].rank <= 10));
+  ordem.forEach(i => {
+    const r = rows[i], top = r.rank <= 10;
+    g += `<circle class="pt" data-i="${i}" cx="${X(r[xKey])}" cy="${Y(retOf(r))}" r="${top ? 6.5 : 4.5}" fill="${top ? "var(--accent)" : "var(--dot-rest)"}" stroke="var(--surface)" stroke-width="2"/>`;
+  });
+  // rótulos diretos só para o Top 10, empilhados para evitar colisão
+  const lbl = rows.filter(r => r.rank <= 10).map(r => ({ r, x: X(r[xKey]), y: Y(retOf(r)) })).sort((a, b) => a.y - b.y);
+  const placed = [];
+  lbl.forEach(o => {
+    let y = o.y + 4, x = o.x + 10, anchor = "start";
+    if (x > W - m.r - 60) { x = o.x - 10; anchor = "end"; }
+    while (placed.some(p => Math.abs(p.y - y) < 13 && Math.abs(p.x - x) < 60)) y += 13;
+    placed.push({ x, y });
+    g += `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11.5" font-weight="700" fill="var(--accent-ink)" font-family="var(--f-mono)" pointer-events="none">${o.r.ticker}</text>`;
+  });
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Dispersão: distância ao alvo ${k === "low" ? "mínimo" : "médio"} versus retorno, ${rows.length} ações">${g}</svg><div class="tip" hidden></div>`;
+  const tip = box.querySelector(".tip");
+  box.querySelectorAll("circle.pt").forEach(c => {
+    const r = rows[+c.dataset.i];
+    c.addEventListener("mouseenter", () => {
+      c.setAttribute("r", r.rank <= 10 ? 8.5 : 6.5);
+      tip.innerHTML = `<b>${r.ticker}</b> <span style="color:var(--muted)">#${r.rank}</span><div class="nm">${r.nome} · ${r.n_analistas ?? "—"} analistas</div>
+        <div class="row"><span>abaixo do alvo</span><span>${pct(r[xKey])}</span></div>
+        <div class="row"><span>retorno</span><span class="${cls(retOf(r))}">${pct(retOf(r))}</span></div>
+        <div class="row"><span>vs ${D.bench}</span><span>${pct(retOf(r) - s.bench)}</span></div>
+        <div class="row"><span>preço base</span><span>R$ ${num(r.preco_base)}</span></div>`;
+      tip.hidden = false;
+      const bb = box.getBoundingClientRect(), cb = c.getBoundingClientRect();
+      let left = cb.left - bb.left + 14, top = cb.top - bb.top - 10;
+      if (left + 190 > bb.width) left = cb.left - bb.left - 190;
+      tip.style.left = Math.max(4, left) + "px"; tip.style.top = Math.max(4, top) + "px";
+    });
+    c.addEventListener("mouseleave", () => { c.setAttribute("r", r.rank <= 10 ? 6.5 : 4.5); tip.hidden = true; });
+  });
+  document.getElementById("legend-" + k).innerHTML =
+    `<span><i class="sw" style="background:var(--accent)"></i>Top 10 do ranking em ${fmtD(D.data_base)}</span>
+     <span><i class="sw" style="background:var(--dot-rest)"></i>demais ações com alvo (${rows.length - 10})</span>
+     <span><i class="sw-line" style="border-color:var(--bench)"></i>${D.bench} no período</span>
+     <span><i class="sw-line" style="border-color:var(--ink-2);border-top-style:dotted"></i>regressão linear (inclinação ${num(s.slope, 2)}, R² ${num(s.r2, 3)})</span>`;
+}
+
+function renderTable(k) {
+  const xKey = k === "low" ? "dist_low" : "dist_mean", s = stats(k);
+  const alvo = k === "low" ? "low_fmt" : "mean_fmt";
+  const body = D[k].ranking.map(r => `<tr class="${r.rank <= 10 ? "top" : ""}"><td>${String(r.rank).padStart(2, "0")}</td>
+    <td class="l"><b>${r.ticker}</b></td><td class="l" style="font-family:var(--f-body);color:var(--ink-2)">${r.setor}</td>
+    <td>R$ ${num(r.preco_base)}</td><td>${r[alvo]}</td><td>${pct(r[xKey])}</td>
+    <td class="${cls(retOf(r))}">${pct(retOf(r))}</td><td class="${cls(retOf(r) - s.bench)}">${pct(retOf(r) - s.bench)}</td><td>${r.n_analistas ?? "—"}</td></tr>`).join("");
+  document.getElementById("table-" + k).innerHTML = `<table><thead><tr><th>#</th><th class="l">Ticker</th><th class="l">Setor</th><th>Preço base</th>
+    <th>Alvo ${k === "low" ? "mín." : "médio"}</th><th>Abaixo do alvo</th><th>Retorno</th><th>vs ${D.bench}</th><th>Analistas</th></tr></thead><tbody>${body}</tbody></table>`;
+  document.getElementById("sum-" + k).textContent = `Ranking completo de ${fmtD(D.data_base)} · ${D[k].ranking.length} ações`;
+}
+
+function renderVerdict() {
+  const L = stats("low"), M = stats("mean");
+  const sig = s => s.p_spearman < 0.05 || s.p_perm < 0.05;
+  const algum = sig(L) || sig(M);
+  const dias = Math.round((new Date(D.data_fim) - new Date(D.data_base)) / 864e5);
+  document.getElementById("verdict").innerHTML = `<h2>${algum ? "Há uma relação no recorte, mas é um recorte só" : "No recorte, o desconto ao alvo não separou vencedores"}</h2>
+    <p>Em ${dias} dias corridos, o Top 10 por alvo mínimo rendeu <b class="mono">${pct(L.top_media)}</b> e o resto <b class="mono">${pct(L.resto_media)}</b>.
+    Por alvo médio, foram <b class="mono">${pct(M.top_media)}</b> contra <b class="mono">${pct(M.resto_media)}</b>. O ${D.bench} fez <b class="mono">${pct(L.bench)}</b>.
+    A correlação de postos entre desconto e retorno ficou em <b class="mono">${num(L.spearman, 2)}</b> (mínimo, p ${pv(L.p_spearman)}) e <b class="mono">${num(M.spearman, 2)}</b> (médio, p ${pv(M.p_spearman)}).
+    ${algum ? "Um resultado significativo numa única janela de dois meses ainda não é edge: precisa se repetir em outras datas-base." : "Os dois números cabem no ruído de uma única janela de dois meses."}</p>`;
+}
+
+function renderStatic() {
+  document.getElementById("meta-n").innerHTML = `Ações: <b>${D.low.ranking.length}</b> de ${D.n_com_alvo} com alvo (${D.n_universo} no IBrA)`;
+  const desc = D.descartados.length ? D.descartados.map(d => `${d.ticker} (${d.motivo})`).join(", ") : "nenhuma";
+  const al = D.alertas.length ? D.alertas.map(a => `${a.ticker} (CSV ${pct(a.ret_csv)} vs yfinance ${pct(a.ret_yf)})`).join(", ") : "nenhuma";
+  document.getElementById("caveats").innerHTML = `
+    <li><b>Um corte transversal, uma janela.</b> São ${D.low.ranking.length} ações num único período de ~2 meses, todas com os mesmos pregões. Retornos no mesmo período andam juntos (mercado, setor), então o N efetivo é bem menor que ${D.low.ranking.length} e os p-valores acima são otimistas. O teste que importa é repetir com outras datas-base (<code>--data-base</code>) quando o histórico de alvos for mais longo.</li>
+    <li><b>Mercado forte e amplo.</b> A média simples das ${D.low.ranking.length} ações subiu ${pct(D.ret_universo_eq)} contra ${pct(D.ret_bench)} do ${D.bench}. Num rali de small caps, quem estava mais descontado tende a subir mais; o mesmo desconto pode dar o sinal oposto numa queda.</li>
+    <li><b>Tamanho, beta e setor.</b> As ações mais descontadas são as menores (Spearman entre desconto e tamanho de ${num(D.low.rho_mcap, 2)} no alvo mínimo e ${num(D.mean.rho_mcap, 2)} no médio). Por isso o card "Spearman parcial" refaz a correlação depois de tirar tamanho, beta e setor. Ela cai pouco, mas só remove esses três fatores, não outros.</li>
+    <li><b>Alvo desatualizado vira reversão.</b> O alvo dos analistas muda devagar. Uma ação que acabou de cair parece "descontada" mesmo sem nenhum analista ter revisto nada. Parte do efeito pode ser reversão de curto prazo, e não informação dos analistas.</li>
+    <li><b>Os dois rankings se sobrepõem.</b> ${D.sobreposicao_top} das 10 ações estão nos dois Top 10. O setor mais frequente no Top 10 é ${D.low.setor_top} (${D.low.setor_top_n} de 10 no alvo mínimo). Os dois gráficos não são duas evidências independentes.</li>
+    <li><b>Universo de ${fmtD(D.data_base)}, sem viés de sobrevivência.</b> Entram as ações coletadas na data-base, inclusive as que saíram do IBrA depois (${D.saiu_do_csv.join(", ") || "nenhuma"}), com preço do yfinance.</li>
+    <li><b>Lookahead.</b> Preço e alvo são da mesma linha do CSV, coletada depois do fechamento. A opção "pregão seguinte" no topo da página entra só no fechamento do dia seguinte; a conclusão não deve depender dessa escolha.</li>
+    <li><b>Retorno.</b> Fechamento ajustado do yfinance, com dividendos e JCP. O preço do CSV (sem proventos) serve de conferência: divergências acima de 15 pontos: ${al}.</li>
+    <li><b>Fora da amostra.</b> Sem alvo na data-base: ${D.sem_alvo.join(", ") || "nenhuma"}. Sem preço no yfinance: ${desc}.</li>`;
+  document.getElementById("foot").innerHTML = `
+    <p><b>Para atualizar:</b> no repo <a href="https://github.com/fpinto0416/acoes_fundamentalista" target="_blank" rel="noopener">fpinto0416/acoes_fundamentalista</a>, rode <code>git pull &amp;&amp; python scripts/analise_alvo_vs_retorno.py</code> (opções <code>--data-base AAAA-MM-DD</code> e <code>--data-fim AAAA-MM-DD</code>) e republique <code>dados/analise_alvo_vs_retorno.html</code> no mesmo link deste artefato. A receita completa está na seção "Análise alvo × retorno" do CLAUDE.md do repo.</p>
+    <p><b>Fontes:</b> <code>dados/analyst_insights.csv</code> e <code>dados/snapshot_diario.csv</code> em ${fmtD(D.data_base)} (Yahoo Finance, coleta diária do repo); preços ajustados do yfinance até ${fmtD(D.data_fim)}; benchmark ${D.bench}, como proxy do IBrA. A distância ao alvo usa a mesma função do <a href="${D.url_panorama}" target="_blank" rel="noopener">Panorama de Alvos</a> (<code>gerar_panorama.montar_registro_ativo</code>).</p>`;
+}
+
+function renderAll() { ["low", "mean"].forEach(k => { renderStats(k); renderChart(k); renderTable(k); }); renderVerdict(); }
+document.getElementById("btn-d0").addEventListener("click", () => { modo = "d0"; sync(); });
+document.getElementById("btn-d1").addEventListener("click", () => { modo = "d1"; sync(); });
+function sync() { document.getElementById("btn-d0").setAttribute("aria-pressed", modo === "d0"); document.getElementById("btn-d1").setAttribute("aria-pressed", modo === "d1"); renderAll(); }
+renderStatic(); renderAll();
+</script>
