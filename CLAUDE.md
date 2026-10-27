@@ -119,9 +119,18 @@ pregão fechado (y, fechamento ajustado do yfinance, benchmark BOVA11).
   fechamento). A página tem o modo "pregão seguinte" como robustez.
 - Resultado de 23/10/2026 (24/08→22/10, N=144): Spearman +0,38 (mínimo) e
   +0,51 (médio), parcial sem tamanho/beta/setor +0,31/+0,45. Top 10 por
-  alvo médio +67% vs resto +30% vs BOVA11 +19% (p de permutação 0,004;
-  alvo mínimo 0,084). Uma janela só, em rali de small caps: precisa
-  repetir com outras datas-base antes de virar tese.
+  alvo médio +67% vs resto +30% vs BOVA11 +19%.
+- **Virou em 26/10/2026**: gap de abertura generalizado (BOVA11 −14,5%,
+  Ibovespa −13,9%, MGLU3 −58%, CVCB3 −38% no dia, segundo o yfinance; as
+  barras intraday têm volume e são coerentes, mas o COTAHIST oficial do dia
+  ainda não tinha saído pra confirmar). Até 26/10: Spearman −0,25/−0,33,
+  Top 10 médio −11,6% vs resto −0,9% vs BOVA11 +2,0%. Lição: o desconto ao
+  alvo é sobretudo exposição a small cap/beta; o resultado segue o mercado.
+  A seção "Pregão a pregão" (Spearman com a janela terminando em cada dia)
+  existe por isso.
+- Se o último fechamento parecer extremo, conferir com o COTAHIST da B3
+  (`https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_DDDMMAAAA.ZIP`,
+  sai na manhã seguinte) antes de tirar conclusão.
 
 ## Estrutura
 

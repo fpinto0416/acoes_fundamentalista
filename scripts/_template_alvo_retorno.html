@@ -24,7 +24,7 @@
     --paper: #f5f6f4; --surface: #ffffff; --ink: #131c24; --ink-2: #55606b; --muted: #8b94a0;
     --line: #dee2de; --line-strong: #c7ccc6;
     --accent: #2d5ea6; --accent-tint: #dbe6f3; --accent-ink: #1c3f73;
-    --dot-rest: #a7aeb7; --bench: #a56a00;
+    --dot-rest: #a7aeb7; --bench: #a56a00; --s2: #1f8a70;
     --good: #0b7f0b; --critical: #c03434; --warning-tint: #fdecc8; --warning: #8a5800;
     --muted-tint: #eceeec;
     --shadow: 0 1px 2px rgba(19,28,36,0.06), 0 8px 24px -12px rgba(19,28,36,0.18);
@@ -37,7 +37,7 @@
       --paper: #0f1318; --surface: #171d24; --ink: #eceef0; --ink-2: #b7c0c9; --muted: #7c8792;
       --line: #2a323c; --line-strong: #3a4350;
       --accent: #7aa9e6; --accent-tint: #24374f; --accent-ink: #bcd4f2;
-      --dot-rest: #5d6773; --bench: #e0ab3d;
+      --dot-rest: #5d6773; --bench: #e0ab3d; --s2: #4cc3a0;
       --good: #3fbf4a; --critical: #e8746c; --warning-tint: #3a2e12; --warning: #e0ab3d;
       --muted-tint: #232a32;
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
@@ -48,7 +48,7 @@
     --paper: #0f1318; --surface: #171d24; --ink: #eceef0; --ink-2: #b7c0c9; --muted: #7c8792;
     --line: #2a323c; --line-strong: #3a4350;
     --accent: #7aa9e6; --accent-tint: #24374f; --accent-ink: #bcd4f2;
-    --dot-rest: #5d6773; --bench: #e0ab3d;
+    --dot-rest: #5d6773; --bench: #e0ab3d; --s2: #4cc3a0;
     --good: #3fbf4a; --critical: #e8746c; --warning-tint: #3a2e12; --warning: #e0ab3d;
     --muted-tint: #232a32;
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
@@ -113,6 +113,9 @@
   tr.top td:first-child { color: var(--accent-ink); font-weight: 700; }
   .pos { color: var(--good); } .neg { color: var(--critical); }
 
+  .evo { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1px; background: var(--line); }
+  .evo > div { background: var(--surface); min-width: 0; padding: 14px 8px 4px; }
+  .evo h3 { font-size: 0.78rem; font-weight: 600; color: var(--ink-2); margin: 0 14px 6px; }
   .notes { display: grid; gap: 22px; margin-bottom: 36px; }
   .notes h2 { font-family: var(--f-display); font-weight: 600; font-size: 1.3rem; margin: 0 0 8px; }
   .notes ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; line-height: 1.55; color: var(--ink-2); max-width: 80ch; }
@@ -138,6 +141,18 @@
   </header>
 
   <section class="verdict" id="verdict"></section>
+
+  <section class="panel" style="margin-bottom:28px">
+    <div class="panel-head">
+      <h2 class="panel-title">Pregão a pregão</h2>
+      <p class="panel-sub">Mesma data-base e mesmo ranking, com a janela terminando em cada pregão. Mostra se a relação é estável ou se depende de onde a janela acaba.</p>
+    </div>
+    <div class="evo">
+      <div><h3>Spearman entre desconto e retorno acumulado</h3><div class="chart-box" id="evo-rho" style="padding:0"></div></div>
+      <div><h3>Retorno acumulado desde __DATA_BASE_FMT__</h3><div class="chart-box" id="evo-ret" style="padding:0"></div></div>
+    </div>
+    <div class="legend" id="evo-legend" style="padding-top:12px"></div>
+  </section>
 
   <div class="controls">
     <span>Entrada no</span>
@@ -294,12 +309,71 @@ function renderVerdict() {
   const L = stats("low"), M = stats("mean");
   const sig = s => s.p_spearman < 0.05 || s.p_perm < 0.05;
   const algum = sig(L) || sig(M);
+  const neg = M.spearman < 0;
   const dias = Math.round((new Date(D.data_fim) - new Date(D.data_base)) / 864e5);
-  document.getElementById("verdict").innerHTML = `<h2>${algum ? "Há uma relação no recorte, mas é um recorte só" : "No recorte, o desconto ao alvo não separou vencedores"}</h2>
+  const ev = D.evolucao, u = ev[ev.length - 1], a = ev[ev.length - 2];
+  let virada = "";
+  if (a && Math.sign(a.rho_mean) !== Math.sign(u.rho_mean)) {
+    const dia = (1 + u.bench) / (1 + a.bench) - 1;
+    virada = ` <b>O sinal virou no último pregão:</b> até ${fmtD(a.data)}, o Spearman no alvo médio era <b class="mono">${num(a.rho_mean, 2)}</b>; com o ${D.bench} em <b class="mono">${pct(dia)}</b> em ${fmtD(u.data)}, passou a <b class="mono">${num(u.rho_mean, 2)}</b>. Um único pregão desfez dois meses de resultado.`;
+  }
+  const titulo = !algum ? "No recorte, o desconto ao alvo não separou vencedores"
+    : neg ? "Na janela atual, os mais descontados ficaram para trás" : "Há uma relação no recorte, mas é um recorte só";
+  document.getElementById("verdict").innerHTML = `<h2>${titulo}</h2>
     <p>Em ${dias} dias corridos, o Top 10 por alvo mínimo rendeu <b class="mono">${pct(L.top_media)}</b> e o resto <b class="mono">${pct(L.resto_media)}</b>.
     Por alvo médio, foram <b class="mono">${pct(M.top_media)}</b> contra <b class="mono">${pct(M.resto_media)}</b>. O ${D.bench} fez <b class="mono">${pct(L.bench)}</b>.
-    A correlação de postos entre desconto e retorno ficou em <b class="mono">${num(L.spearman, 2)}</b> (mínimo, p ${pv(L.p_spearman)}) e <b class="mono">${num(M.spearman, 2)}</b> (médio, p ${pv(M.p_spearman)}).
-    ${algum ? "Um resultado significativo numa única janela de dois meses ainda não é edge: precisa se repetir em outras datas-base." : "Os dois números cabem no ruído de uma única janela de dois meses."}</p>`;
+    A correlação de postos entre desconto e retorno ficou em <b class="mono">${num(L.spearman, 2)}</b> (mínimo, p ${pv(L.p_spearman)}) e <b class="mono">${num(M.spearman, 2)}</b> (médio, p ${pv(M.p_spearman)}).${virada}
+    ${algum ? "Um resultado significativo numa única janela ainda não é edge, para nenhum dos lados: precisa se repetir em outras datas-base." : "Os dois números cabem no ruído de uma única janela."}</p>`;
+}
+
+function lineChart(el, series, fmtY, zero) {
+  const ev = D.evolucao, W = 520, H = 250, m = { l: 52, r: 14, t: 12, b: 30 };
+  const vals = series.flatMap(sr => ev.map(p => p[sr.key]));
+  let y0 = Math.min(...vals, zero ? 0 : Infinity), y1 = Math.max(...vals, zero ? 0 : -Infinity);
+  const padY = (y1 - y0) * 0.08 || 0.01; y0 -= padY; y1 += padY;
+  const X = i => m.l + i / Math.max(1, ev.length - 1) * (W - m.l - m.r);
+  const Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  let g = "";
+  niceTicks(y0, y1, 5).forEach(t => { g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(t)}" y2="${Y(t)}" stroke="var(--line)"/>
+    <text x="${m.l - 8}" y="${Y(t) + 4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="var(--f-mono)">${fmtY(t)}</text>`; });
+  if (zero) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--ink-2)" stroke-width="1.2"/>`;
+  const step = Math.max(1, Math.ceil(ev.length / 5));
+  ev.forEach((p, i) => { if (i % step === 0 || i === ev.length - 1) g += `<text x="${X(i)}" y="${H - 10}" text-anchor="middle" font-size="11" fill="var(--muted)" font-family="var(--f-mono)">${p.data.slice(8, 10)}/${p.data.slice(5, 7)}</text>`; });
+  series.forEach(sr => {
+    g += `<polyline fill="none" stroke="${sr.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${ev.map((p, i) => `${X(i)},${Y(p[sr.key])}`).join(" ")}"/>`;
+    const i = ev.length - 1;
+    g += `<circle cx="${X(i)}" cy="${Y(ev[i][sr.key])}" r="4" fill="${sr.color}" stroke="var(--surface)" stroke-width="2"/>`;
+  });
+  g += `<line class="xh" x1="0" x2="0" y1="${m.t}" y2="${H - m.b}" stroke="var(--line-strong)" visibility="hidden"/>
+    <rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" class="hit"/>`;
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${series.map(s => s.label).join(", ")} por pregão">${g}</svg><div class="tip" hidden></div>`;
+  const svg = el.querySelector("svg"), tip = el.querySelector(".tip"), xh = el.querySelector(".xh");
+  el.querySelector(".hit").addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) / r.width * W;
+    const i = Math.max(0, Math.min(ev.length - 1, Math.round((sx - m.l) / (W - m.l - m.r) * (ev.length - 1))));
+    xh.setAttribute("x1", X(i)); xh.setAttribute("x2", X(i)); xh.setAttribute("visibility", "visible");
+    tip.innerHTML = `<b>${fmtD(ev[i].data)}</b>` + series.map(sr => `<div class="row"><span><i class="sw" style="background:${sr.color};width:8px;height:8px"></i> ${sr.label}</span><span>${fmtY(ev[i][sr.key], 2)}</span></div>`).join("");
+    tip.hidden = false;
+    let left = X(i) / W * r.width + 12; if (left + 200 > r.width) left -= 224;
+    tip.style.left = Math.max(4, left) + "px"; tip.style.top = "8px";
+  });
+  el.querySelector(".hit").addEventListener("mouseleave", () => { tip.hidden = true; xh.setAttribute("visibility", "hidden"); });
+}
+
+function renderEvo() {
+  const rho = (v, c = 1) => num(v, c === 0 ? 1 : 2);
+  lineChart(document.getElementById("evo-rho"), [
+    { key: "rho_low", label: "alvo mínimo", color: "var(--accent)" },
+    { key: "rho_mean", label: "alvo médio", color: "var(--s2)" }], rho, true);
+  lineChart(document.getElementById("evo-ret"), [
+    { key: "universo", label: "média das ações", color: "var(--ink-2)" },
+    { key: "bench", label: D.bench, color: "var(--bench)" }], (v, c = 0) => pct(v, c), true);
+  document.getElementById("evo-legend").innerHTML =
+    `<span><i class="sw" style="background:var(--accent)"></i>Spearman, alvo mínimo</span>
+     <span><i class="sw" style="background:var(--s2)"></i>Spearman, alvo médio</span>
+     <span><i class="sw" style="background:var(--ink-2)"></i>média simples das ${D.low.ranking.length} ações</span>
+     <span><i class="sw" style="background:var(--bench)"></i>${D.bench}</span>
+     <span style="color:var(--muted)">entrada no fechamento da data-base</span>`;
 }
 
 function renderStatic() {
@@ -308,13 +382,13 @@ function renderStatic() {
   const al = D.alertas.length ? D.alertas.map(a => `${a.ticker} (CSV ${pct(a.ret_csv)} vs yfinance ${pct(a.ret_yf)})`).join(", ") : "nenhuma";
   document.getElementById("caveats").innerHTML = `
     <li><b>Um corte transversal, uma janela.</b> São ${D.low.ranking.length} ações num único período de ~2 meses, todas com os mesmos pregões. Retornos no mesmo período andam juntos (mercado, setor), então o N efetivo é bem menor que ${D.low.ranking.length} e os p-valores acima são otimistas. O teste que importa é repetir com outras datas-base (<code>--data-base</code>) quando o histórico de alvos for mais longo.</li>
-    <li><b>Mercado forte e amplo.</b> A média simples das ${D.low.ranking.length} ações subiu ${pct(D.ret_universo_eq)} contra ${pct(D.ret_bench)} do ${D.bench}. Num rali de small caps, quem estava mais descontado tende a subir mais; o mesmo desconto pode dar o sinal oposto numa queda.</li>
-    <li><b>Tamanho, beta e setor.</b> As ações mais descontadas são as menores (Spearman entre desconto e tamanho de ${num(D.low.rho_mcap, 2)} no alvo mínimo e ${num(D.mean.rho_mcap, 2)} no médio). Por isso o card "Spearman parcial" refaz a correlação depois de tirar tamanho, beta e setor. Ela cai pouco, mas só remove esses três fatores, não outros.</li>
+    <li><b>O desconto anda junto com o mercado.</b> A média simples das ${D.low.ranking.length} ações fez ${pct(D.ret_universo_eq)} contra ${pct(D.ret_bench)} do ${D.bench}. As ações mais descontadas são as menores e mais voláteis: quando as small caps sobem mais que o índice, elas lideram; quando caem mais, ficam por último. O gráfico "Pregão a pregão" mostra o Spearman seguindo o mercado.</li>
+    <li><b>Tamanho, beta e setor.</b> Spearman entre desconto e tamanho: ${num(D.low.rho_mcap, 2)} no alvo mínimo e ${num(D.mean.rho_mcap, 2)} no médio. O card "Spearman parcial" refaz a correlação depois de tirar tamanho, beta e setor (no alvo médio, de ${num(D.mean.stats.spearman, 2)} para ${num(D.mean.stats.spearman_parcial, 2)}). Ele só remove esses três fatores; o beta é o de 5 anos do Yahoo e mede mal o comportamento num dia extremo.</li>
     <li><b>Alvo desatualizado vira reversão.</b> O alvo dos analistas muda devagar. Uma ação que acabou de cair parece "descontada" mesmo sem nenhum analista ter revisto nada. Parte do efeito pode ser reversão de curto prazo, e não informação dos analistas.</li>
     <li><b>Os dois rankings se sobrepõem.</b> ${D.sobreposicao_top} das 10 ações estão nos dois Top 10. O setor mais frequente no Top 10 é ${D.low.setor_top} (${D.low.setor_top_n} de 10 no alvo mínimo). Os dois gráficos não são duas evidências independentes.</li>
     <li><b>Universo de ${fmtD(D.data_base)}, sem viés de sobrevivência.</b> Entram as ações coletadas na data-base, inclusive as que saíram do IBrA depois (${D.saiu_do_csv.join(", ") || "nenhuma"}), com preço do yfinance.</li>
     <li><b>Lookahead.</b> Preço e alvo são da mesma linha do CSV, coletada depois do fechamento. A opção "pregão seguinte" no topo da página entra só no fechamento do dia seguinte; a conclusão não deve depender dessa escolha.</li>
-    <li><b>Retorno.</b> Fechamento ajustado do yfinance, com dividendos e JCP. O preço do CSV (sem proventos) serve de conferência: divergências acima de 15 pontos: ${al}.</li>
+    <li><b>Retorno.</b> Fechamento ajustado do yfinance, com dividendos e JCP. O preço do CSV (sem proventos) serve de conferência até ${fmtD(D.data_csv_fim)}, a última coleta: divergências acima de 15 pontos: ${al}. O fechamento mais recente vem só do yfinance; o arquivo oficial da B3 (COTAHIST) do dia sai na manhã seguinte.</li>
     <li><b>Fora da amostra.</b> Sem alvo na data-base: ${D.sem_alvo.join(", ") || "nenhuma"}. Sem preço no yfinance: ${desc}.</li>`;
   document.getElementById("foot").innerHTML = `
     <p><b>Para atualizar:</b> no repo <a href="https://github.com/fpinto0416/acoes_fundamentalista" target="_blank" rel="noopener">fpinto0416/acoes_fundamentalista</a>, rode <code>git pull &amp;&amp; python scripts/analise_alvo_vs_retorno.py</code> (opções <code>--data-base AAAA-MM-DD</code> e <code>--data-fim AAAA-MM-DD</code>) e republique <code>dados/analise_alvo_vs_retorno.html</code> no mesmo link deste artefato. A receita completa está na seção "Análise alvo × retorno" do CLAUDE.md do repo.</p>
@@ -325,5 +399,5 @@ function renderAll() { ["low", "mean"].forEach(k => { renderStats(k); renderChar
 document.getElementById("btn-d0").addEventListener("click", () => { modo = "d0"; sync(); });
 document.getElementById("btn-d1").addEventListener("click", () => { modo = "d1"; sync(); });
 function sync() { document.getElementById("btn-d0").setAttribute("aria-pressed", modo === "d0"); document.getElementById("btn-d1").setAttribute("aria-pressed", modo === "d1"); renderAll(); }
-renderStatic(); renderAll();
+renderStatic(); renderEvo(); renderAll();
 </script>

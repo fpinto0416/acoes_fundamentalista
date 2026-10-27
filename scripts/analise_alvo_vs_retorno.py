@@ -149,7 +149,8 @@ def analisar(data_base=None, data_fim=None):
             descartados.append({"ticker": t, "motivo": "sem preço no yfinance na data-base" if ret is not None or col not in aj else "sem preço no yfinance"})
             continue
         ret_d1, _, _ = retorno(aj[col], data_base, pos_ini=1)
-        ret_cru, _, _ = retorno(cru[col], data_base)
+        # conferência na MESMA janela do CSV (data-base → última data do CSV), senão compara períodos diferentes
+        ret_cru, _, _ = retorno(cru[col].loc[:pd.Timestamp(data_csv_fim)], data_base)
         p_fim_csv = preco_csv_fim.get(t)
         ret_csv = float(p_fim_csv / r["preco_base"] - 1) if pd.notna(p_fim_csv) and r["preco_base"] else None
         if ret_csv is not None and abs(ret_csv - ret_cru) > DIVERGENCIA_CSV:
@@ -182,6 +183,19 @@ def analisar(data_base=None, data_fim=None):
         resultado[chave] = {"stats": principal, "stats_d1": robustez, "ranking": ranking,
                             "setor_top": setores_top.index[0], "setor_top_n": int(setores_top.iloc[0]),
                             "rho_mcap": float(stats.spearmanr(tab[dist], tab["log_mcap"], nan_policy="omit")[0])}
+    # evolução dia a dia: Spearman e Top 10 − resto se a janela terminasse em cada pregão
+    base = aj.loc[pd.Timestamp(data_base)]
+    cols = tab["ticker"] + ".SA"
+    evolucao = []
+    for d in aj.index[aj.index > pd.Timestamp(data_base)]:
+        ret_d = (aj.loc[d, cols] / base[cols] - 1).to_numpy()
+        ponto = {"data": d.strftime("%Y-%m-%d"), "bench": float(aj.loc[d, BENCH] / base[BENCH] - 1),
+                 "universo": float(np.nanmean(ret_d))}
+        for chave, dist in (("low", "dist_low"), ("mean", "dist_mean")):
+            ordem = tab[dist].rank(ascending=False, method="first").to_numpy() <= 10
+            ponto[f"rho_{chave}"] = float(stats.spearmanr(tab[dist], ret_d, nan_policy="omit")[0])
+            ponto[f"spread_{chave}"] = float(np.nanmean(ret_d[ordem]) - np.nanmean(ret_d[~ordem]))
+        evolucao.append(ponto)
     top_low = set(t["ticker"] for t in resultado["low"]["ranking"][:10])
     top_mean = set(t["ticker"] for t in resultado["mean"]["ranking"][:10])
 
@@ -193,7 +207,7 @@ def analisar(data_base=None, data_fim=None):
         "sem_alvo": sem_alvo, "descartados": descartados, "alertas": alertas,
         "url_panorama": URL_PANORAMA, "sobreposicao_top": len(top_low & top_mean),
         "saiu_do_csv": sorted(t["ticker"] for t in linhas if t["saiu_do_csv"]),
-        "ret_universo_eq": float(tab["ret"].mean()), **resultado,
+        "ret_universo_eq": float(tab["ret"].mean()), "evolucao": evolucao, **resultado,
     }
 
 
