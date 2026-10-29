@@ -451,6 +451,41 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ---------- ativos acompanhados ---------- */
+  .watch-section { margin-bottom: 48px; }
+  .watch-scroll {
+    overflow-x: auto;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+  }
+  table.watch { width: 100%; border-collapse: collapse; min-width: 420px; }
+  table.watch th {
+    text-align: left;
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.watch td {
+    padding: 11px 18px;
+    border-bottom: 1px solid var(--line);
+    font-size: 0.92rem;
+  }
+  table.watch tr:last-child td { border-bottom: none; }
+  table.watch tbody tr:hover { background: var(--muted-tint); }
+  table.watch .num {
+    text-align: right;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  table.watch td.num.pos { color: var(--good); font-weight: 600; }
+  table.watch td.num.neg { color: var(--critical); font-weight: 600; }
+
   /* ---------- footer ---------- */
   .foot {
     margin-top: 8px;
@@ -624,6 +659,25 @@ __OPTIONS_HTML__
     </div>
 
     <div class="detail-card" id="ativo-detail"></div>
+  </section>
+
+  <!-- fonte: ATIVOS_ACOMPANHADOS em gerar_panorama.py (lista fixa, pedido de 26/10/2026);
+       cotação = preco_atual, alvo = target_mean, desconto = (alvo − preço) / preço -->
+  <section class="watch-section">
+    <div class="section-head">
+      <h2>Ativos acompanhados</h2>
+      <p>Cotação de fechamento, preço-alvo médio dos analistas e a distância da cotação até ele.</p>
+    </div>
+    <div class="watch-scroll">
+      <table class="watch">
+        <thead>
+          <tr><th>Ativo</th><th class="num">Cotação</th><th class="num">Preço-alvo médio</th><th class="num">Desconto ao alvo</th></tr>
+        </thead>
+        <tbody>
+__ACOMPANHADOS_HTML__
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <footer class="foot">

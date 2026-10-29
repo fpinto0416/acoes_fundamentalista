@@ -240,6 +240,29 @@ def row_html(rank, reg, dist_key):
       </li>"""
 
 
+# Tabela fixa no fim do painel (pedido do usuário em 26/10/2026), na ordem pedida.
+ATIVOS_ACOMPANHADOS = ["PETR4", "VALE3", "BBAS3", "ITUB4", "BBDC4", "AXIA3", "B3SA3", "PRIO3", "BPAC11"]
+
+
+def acompanhados_html(registros):
+    linhas = []
+    for t in ATIVOS_ACOMPANHADOS:
+        reg = registros.get(t)
+        if reg is None:
+            linhas.append(f'        <tr><td class="ticker">{t}</td><td class="num" colspan="3">não coletado hoje</td></tr>')
+            continue
+        if reg["tem_alvo"]:
+            alvo, desc = reg["mean_fmt"], reg["dist_mean_fmt"]
+            cls = "pos" if reg["dist_mean_pct"] >= 0 else "neg"
+        else:
+            alvo, desc, cls = "—", "—", ""
+        linhas.append(
+            f'        <tr><td class="ticker">{t}</td><td class="num">{reg["preco_fmt"]}</td>'
+            f'<td class="num">{alvo}</td><td class="num {cls}">{desc}</td></tr>'
+        )
+    return "\n".join(linhas)
+
+
 def gerar():
     df, data_ref, total_universo = carregar_dados()
     registros = {r["ticker"]: montar_registro_ativo(r) for _, r in df.iterrows()}
@@ -285,6 +308,7 @@ def gerar():
         "__TOP_MEAN_HTML__": top_mean_html,
         "__OPTIONS_HTML__": options_html,
         "__TICKER_DEFAULT__": ticker_default,
+        "__ACOMPANHADOS_HTML__": acompanhados_html(registros),
         "__REGISTROS_JSON__": registros_json,
     }
     html = template
