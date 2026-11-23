@@ -1,28 +1,13 @@
 name: Coleta diaria
 
 on:
-  # 24/11/2026: VPS desligada. O gatilho voltou a ser o on:schedule do GitHub,
-  # agora com horarios de reserva + o job `guarda` (abaixo), que pula rodada
-  # atrasada demais e rodada repetida no mesmo dia. Historico abaixo.
   # on:schedule removido em 31/08 -- provou ser fonte de risco, nao
   # rede de seguranca: hoje disparou ~7h atrasado no opcoes-sinal-diario
   # (2a mensagem Telegram duplicada) e nao disparou nenhuma vez no hilo
   # (repo que ainda depende so dele). O cron da VPS (workflow_dispatch
   # via gh workflow run) e o gatilho real desde 28/08 -- ver CLAUDE.md.
-  schedule:
-    - cron: "7 6 * * 1-5"   # 03:07 BRT
-    - cron: "7 8 * * 1-5"   # reserva 05:07 BRT
-    - cron: "7 10 * * 1-5"   # reserva 07:07 BRT
   workflow_dispatch:
     inputs:
-      teste:
-        description: "Teste: roda tudo sem Telegram e sem commit (ignora a guarda)"
-        type: boolean
-        default: false
-      forcar:
-        description: "Rodar mesmo se ja houve rodada hoje / fora da janela"
-        type: boolean
-        default: false
       force_update_tickers:
         description: "Forcar atualizacao da lista de tickers do IBrA (mesmo se ainda estiver recente)"
         type: boolean
@@ -30,64 +15,17 @@ on:
 
 permissions:
   contents: write
-  actions: read
 
 concurrency:
   group: acoes-fundamentalista-diario
   cancel-in-progress: false
 
 jobs:
-  # Guarda (24/11/2026, saida da VPS): o gatilho agora e o on:schedule do
-  # GitHub, com horarios de reserva. Este job decide se a rodada vale:
-  #   - schedule fora da janela [0h, 10h) BRT -> pula (atraso grande);
-  #   - ja houve rodada de verdade com sucesso hoje (BRT) -> pula (evita
-  #     Telegram/commit em dobro quando o horario de reserva tambem dispara);
-  #   - disparo manual com forcar=true -> roda sempre.
-  guarda:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      rodar: ${{ steps.g.outputs.rodar }}
-    steps:
-      - id: g
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENTO: ${{ github.event_name }}
-          FORCAR: ${{ inputs.forcar || inputs.teste }}
-          HORA_MIN: "0"
-          HORA_MAX: "10"
-        run: |
-          set -euo pipefail
-          hoje=$(TZ=America/Sao_Paulo date +%F)
-          hora=$((10#$(TZ=America/Sao_Paulo date +%H)))
-          if [ "${FORCAR:-false}" = "true" ]; then
-            echo "forcar=true -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ "$EVENTO" = "schedule" ] && { [ "$hora" -lt "$HORA_MIN" ] || [ "$hora" -ge "$HORA_MAX" ]; }; then
-            echo "schedule as ${hora}h BRT, fora da janela -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          inicio=$(date -u -d "$hoje 03:00" +%FT%TZ)
-          ja=0
-          for id in $(gh run list -R "$GITHUB_REPOSITORY" -w "$GITHUB_WORKFLOW" -s success \
-                        --created ">=$inicio" -L 50 --json databaseId -q '.[].databaseId'); do
-            [ "$id" = "$GITHUB_RUN_ID" ] && continue
-            n=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs" \
-                  -q '[.jobs[] | select(.name != "guarda" and .conclusion == "success")] | length')
-            if [ "$n" -gt 0 ]; then ja=$id; break; fi
-          done
-          if [ "$ja" != "0" ]; then
-            echo "ja rodou hoje ($hoje) na run $ja -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "nenhuma rodada de verdade hoje -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"
-          fi
-
   coleta:
-    needs: guarda
-    if: needs.guarda.outputs.rodar == 'true'
     # Runner proprio (28/08) -- fila compartilhada do GitHub Actions
     # atrasou rodadas por horas em varios repos nessa semana. VPS
     # dedicada (mesma maquina do omqs_futuros_5tf), sem fila.
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, self-hosted-acoes_fundamentalista]
     timeout-minutes: 180
     steps:
       - name: Checkout
@@ -112,7 +50,6 @@ jobs:
         run: python scripts/gerar_panorama.py
 
       - name: Commit e push dos resultados
-        if: ${{ !inputs.teste }}
         run: |
           git config user.name "acoes-fundamentalista-bot"
           git config user.email "actions@users.noreply.github.com"
