@@ -26,8 +26,10 @@ concurrency:
 
 jobs:
   coleta:
-    # 24/11/2026: runner na droplet nova (NYC1, 1 GB). No ubuntu-latest o Yahoo
-    # devolve 404 em todos os tickers (bloqueio por IP) -- nao migrar.
+    # 24/11/2026: runner na droplet nova (NYC1, 1 GB). Os "HTTP Error 404 ...
+    # No fundamentals data found" no log sao normais (aparecem para os 148
+    # tickers tambem aqui) e a coleta sai completa. O revert b6f6563 partiu
+    # de um diagnostico errado: o ubuntu-latest nao foi comprovadamente bloqueado.
     # Runner proprio (28/08) -- fila compartilhada do GitHub Actions
     # atrasou rodadas por horas em varios repos nessa semana. VPS
     # dedicada (mesma maquina do omqs_futuros_5tf), sem fila.
