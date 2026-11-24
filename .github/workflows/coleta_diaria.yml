@@ -8,6 +8,10 @@ on:
   # via gh workflow run) e o gatilho real desde 28/08 -- ver CLAUDE.md.
   workflow_dispatch:
     inputs:
+      teste:
+        description: "Teste: coleta e gera o panorama sem commitar"
+        type: boolean
+        default: false
       force_update_tickers:
         description: "Forcar atualizacao da lista de tickers do IBrA (mesmo se ainda estiver recente)"
         type: boolean
@@ -22,6 +26,8 @@ concurrency:
 
 jobs:
   coleta:
+    # 24/11/2026: runner na droplet nova (NYC1, 1 GB). No ubuntu-latest o Yahoo
+    # devolve 404 em todos os tickers (bloqueio por IP) -- nao migrar.
     # Runner proprio (28/08) -- fila compartilhada do GitHub Actions
     # atrasou rodadas por horas em varios repos nessa semana. VPS
     # dedicada (mesma maquina do omqs_futuros_5tf), sem fila.
@@ -50,6 +56,7 @@ jobs:
         run: python scripts/gerar_panorama.py
 
       - name: Commit e push dos resultados
+        if: ${{ !inputs.teste }}
         run: |
           git config user.name "acoes-fundamentalista-bot"
           git config user.email "actions@users.noreply.github.com"
