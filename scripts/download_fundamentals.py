@@ -71,6 +71,8 @@ else:
 HOJE = _dia_referencia.strftime("%Y-%m-%d")
 TENTATIVAS = 3
 PAUSA_ENTRE_TICKERS = 0.4  # segundos, para não apanhar rate-limit do Yahoo
+REPESCAGEM_ESPERAS = (90, 300)  # segundos antes de cada repescagem dos que falharam
+PAUSA_REPESCAGEM = 3
 
 
 def _get(d, chave, default=None):
@@ -219,16 +221,38 @@ def main() -> None:
     tickers_df = garantir_tickers_atualizados()
     print(f"Coletando fundamentos de {len(tickers_df)} tickers do IBrA...")
 
-    snapshots, analyst_rows = [], []
+    snapshots, analyst_rows, falhas = [], [], []
     for i, row in tickers_df.iterrows():
         ticker, ticker_yf = row["ticker"], row["ticker_yf"]
         print(f"[{i + 1}/{len(tickers_df)}] {ticker}")
         snapshot, insights = coletar_ticker(ticker, ticker_yf)
         if snapshot:
             snapshots.append(snapshot)
+        else:
+            falhas.append((ticker, ticker_yf))
         if insights:
             analyst_rows.append(insights)
         time.sleep(PAUSA_ENTRE_TICKERS)
+
+    # Repescagem (24/11/2026): no runner do GitHub o IP e compartilhado e o
+    # Yahoo as vezes devolve "Too Many Requests" no fim da lista (14 tickers
+    # perdidos num teste). Espera e tenta de novo so os que falharam, devagar.
+    for espera in REPESCAGEM_ESPERAS:
+        if not falhas:
+            break
+        print(f"Repescagem: {len(falhas)} ticker(s) falharam; esperando {espera}s...")
+        time.sleep(espera)
+        ainda = []
+        for ticker, ticker_yf in falhas:
+            snapshot, insights = coletar_ticker(ticker, ticker_yf)
+            if snapshot:
+                snapshots.append(snapshot)
+            else:
+                ainda.append((ticker, ticker_yf))
+            if insights:
+                analyst_rows.append(insights)
+            time.sleep(PAUSA_REPESCAGEM)
+        falhas = ainda
 
     _atualiza_serie_historica(CSV_SNAPSHOT, snapshots)
     _atualiza_serie_historica(CSV_ANALYST, analyst_rows)
@@ -237,6 +261,17 @@ def main() -> None:
         f"Concluído: {len(snapshots)}/{len(tickers_df)} snapshots e "
         f"{len(analyst_rows)}/{len(tickers_df)} registros de analyst insights salvos."
     )
+    if falhas:
+        print("Sem dado hoje: " + ", ".join(t for t, _ in falhas))
+
+    # Cobertura minima: abaixo dela o job falha (sem commit) para que o
+    # horario de reserva do workflow tente de novo mais tarde. O workflow
+    # zera o minimo na ultima reserva, para nao perder o dia inteiro.
+    minimo = float(os.getenv("COBERTURA_MINIMA", "0") or 0)
+    cobertura = len(snapshots) / max(len(tickers_df), 1)
+    if cobertura < minimo:
+        print(f"ERRO: cobertura {cobertura:.1%} abaixo do minimo {minimo:.0%}.")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
