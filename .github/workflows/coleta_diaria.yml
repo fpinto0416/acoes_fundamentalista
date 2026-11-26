@@ -1,13 +1,14 @@
 name: Coleta diaria
 
 on:
-  # 24/11/2026: saiu da VPS. Gatilho = on:schedule do GitHub com horarios de
-  # reserva + job `guarda` (pula rodada repetida no dia ou atrasada demais --
-  # depois das 10h BRT o preco ja seria do pregao em curso). Historico abaixo.
+  # 25/11/2026: gatilho NOTURNO. O schedule do GitHub atrasou 7-11 h em
+  # 24-25/11; disparando a partir das 18-21h BRT, mesmo com 12 h de atraso a
+  # rodada sai antes do pregao seguinte abrir. Ver o job `guarda`. Historico abaixo.
   schedule:
-    - cron: "7 6 * * 1-5"   # 03:07 BRT
-    - cron: "7 8 * * 1-5"   # reserva 05:07 BRT
-    - cron: "7 10 * * 1-5"   # reserva 07:07 BRT
+    - cron: "7 22 * * 1-5"   # 19:07 BRT
+    - cron: "7 1 * * 2-6"   # 22:07 BRT
+    - cron: "7 4 * * 2-6"   # 01:07 BRT
+    - cron: "7 7 * * 2-6"   # 04:07 BRT
   # on:schedule removido em 31/08 -- provou ser fonte de risco, nao
   # rede de seguranca: hoje disparou ~7h atrasado no opcoes-sinal-diario
   # (2a mensagem Telegram duplicada) e nao disparou nenhuma vez no hilo
@@ -37,36 +38,53 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Guarda (24/11/2026, saida da VPS): o gatilho agora e o on:schedule do
-  # GitHub, com horarios de reserva. Este job decide se a rodada vale:
-  #   - schedule fora da janela [0h, 10h) BRT -> pula (atraso grande);
-  #   - ja houve rodada de verdade com sucesso hoje (BRT) -> pula (evita
-  #     Telegram/commit em dobro quando o horario de reserva tambem dispara);
-  #   - disparo manual com forcar=true -> roda sempre.
+  # Guarda (25/11/2026). O on:schedule do GitHub atrasou 7-11 h em 24-25/11,
+  # entao o gatilho e NOTURNO, com varios horarios, e a rodada vale de
+  # 18h ate 9h59 BRT do dia seguinte (antes do pregao abrir).
+  #   - dia de referencia = pregao a que a rodada se refere: antes das 9h BRT
+  #     e o dia util anterior (seg de madrugada -> sexta);
+  #   - schedule fora da janela, ou referencia em fim de semana -> pula;
+  #   - ja houve rodada de verdade com sucesso para essa referencia -> pula
+  #     (evita Telegram/commit em dobro quando outro horario tambem dispara);
+  #   - disparo manual com forcar=true (ou teste=true) -> roda sempre.
   guarda:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       rodar: ${{ steps.g.outputs.rodar }}
+      ref: ${{ steps.g.outputs.ref }}
     steps:
       - id: g
         env:
           GH_TOKEN: ${{ github.token }}
           EVENTO: ${{ github.event_name }}
           FORCAR: ${{ inputs.forcar || inputs.teste }}
-          HORA_MIN: "0"
+          HORA_MIN: "18"
           HORA_MAX: "10"
         run: |
           set -euo pipefail
           hoje=$(TZ=America/Sao_Paulo date +%F)
           hora=$((10#$(TZ=America/Sao_Paulo date +%H)))
+          if [ "$hora" -lt 9 ]; then
+            case $(date -d "$hoje" +%u) in 1) v=3;; 7) v=2;; *) v=1;; esac
+            ref=$(date -d "$hoje -$v day" +%F)
+          else
+            ref=$hoje
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "agora ${hora}h BRT de $hoje -> referencia $ref"
           if [ "${FORCAR:-false}" = "true" ]; then
-            echo "forcar=true -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "forcar -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          if [ "$EVENTO" = "schedule" ] && { [ "$hora" -lt "$HORA_MIN" ] || [ "$hora" -ge "$HORA_MAX" ]; }; then
-            echo "schedule as ${hora}h BRT, fora da janela -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"; exit 0
+          if [ "$EVENTO" = "schedule" ]; then
+            if [ "$hora" -ge "$HORA_MAX" ] && [ "$hora" -lt "$HORA_MIN" ]; then
+              echo "fora da janela -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            if [ "$(date -d "$ref" +%u)" -ge 6 ]; then
+              echo "referencia em fim de semana -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"; exit 0
+            fi
           fi
-          inicio=$(date -u -d "$hoje 03:00" +%FT%TZ)
+          inicio=$(date -u -d "$ref 15:00" +%FT%TZ)   # 12h BRT do dia de referencia
           ja=0
           for id in $(gh run list -R "$GITHUB_REPOSITORY" -w "$GITHUB_WORKFLOW" -s success \
                         --created ">=$inicio" -L 50 --json databaseId -q '.[].databaseId'); do
@@ -76,9 +94,11 @@ jobs:
             if [ "$n" -gt 0 ]; then ja=$id; break; fi
           done
           if [ "$ja" != "0" ]; then
-            echo "ja rodou hoje ($hoje) na run $ja -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"
+            echo "referencia $ref ja rodou na run $ja -> pula"; echo "rodar=false" >> "$GITHUB_OUTPUT"
           else
-            echo "nenhuma rodada de verdade hoje -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"
+            echo "referencia $ref sem rodada de verdade -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"
+          fi
+
           fi
 
   coleta:
@@ -106,10 +126,11 @@ jobs:
       - name: Coletar fundamentos do dia (download_fundamentals.py)
         env:
           FORCE_UPDATE: ${{ inputs.force_update_tickers == true && '1' || '' }}
-        # Antes das 07h BRT exige 95% dos tickers (senao falha e a reserva
-        # seguinte tenta de novo); na ultima reserva aceita o que vier.
+        # Exige 95% dos tickers (senao falha e o proximo horario tenta de novo),
+        # exceto entre 05h e 10h BRT, a ultima chance antes do pregao: ai aceita o que vier.
         run: |
-          if [ $((10#$(TZ=America/Sao_Paulo date +%H))) -lt 7 ]; then export COBERTURA_MINIMA=0.95; fi
+          h=$((10#$(TZ=America/Sao_Paulo date +%H)))
+          if [ "$h" -lt 5 ] || [ "$h" -ge 10 ]; then export COBERTURA_MINIMA=0.95; fi
           python scripts/download_fundamentals.py
 
       - name: Gerar panorama do dia (gerar_panorama.py)
