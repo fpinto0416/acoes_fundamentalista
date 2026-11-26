@@ -40,7 +40,9 @@ concurrency:
 jobs:
   # Guarda (25/11/2026). O on:schedule do GitHub atrasou 7-11 h em 24-25/11,
   # entao o gatilho e NOTURNO, com varios horarios, e a rodada vale de
-  # 18h ate 9h59 BRT do dia seguinte (antes do pregao abrir).
+  # 18h ate 8h59 BRT do dia seguinte. A janela fecha as 9h, junto com a troca
+  # do dia de referencia (26/11: reserva das 08:03 chegou 09:21, a referencia
+  # virou o pregao do dia e o Sinal tentou gerar o sinal de um dia sem COTAHIST).
   #   - dia de referencia = pregao a que a rodada se refere: antes das 9h BRT
   #     e o dia util anterior (seg de madrugada -> sexta);
   #   - schedule fora da janela, ou referencia em fim de semana -> pula;
@@ -60,7 +62,7 @@ jobs:
           EVENTO: ${{ github.event_name }}
           FORCAR: ${{ inputs.forcar || inputs.teste }}
           HORA_MIN: "18"
-          HORA_MAX: "10"
+          HORA_MAX: "9"
         run: |
           set -euo pipefail
           hoje=$(TZ=America/Sao_Paulo date +%F)
@@ -126,10 +128,10 @@ jobs:
         env:
           FORCE_UPDATE: ${{ inputs.force_update_tickers == true && '1' || '' }}
         # Exige 95% dos tickers (senao falha e o proximo horario tenta de novo),
-        # exceto entre 05h e 10h BRT, a ultima chance antes do pregao: ai aceita o que vier.
+        # exceto entre 05h e 9h BRT, a ultima chance antes do pregao: ai aceita o que vier.
         run: |
           h=$((10#$(TZ=America/Sao_Paulo date +%H)))
-          if [ "$h" -lt 5 ] || [ "$h" -ge 10 ]; then export COBERTURA_MINIMA=0.95; fi
+          if [ "$h" -lt 5 ] || [ "$h" -ge 9 ]; then export COBERTURA_MINIMA=0.95; fi
           python scripts/download_fundamentals.py
 
       - name: Gerar panorama do dia (gerar_panorama.py)
