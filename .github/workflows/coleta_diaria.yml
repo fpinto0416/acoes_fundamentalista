@@ -99,7 +99,6 @@ jobs:
             echo "referencia $ref sem rodada de verdade -> roda"; echo "rodar=true" >> "$GITHUB_OUTPUT"
           fi
 
-          fi
 
   coleta:
     name: ${{ inputs.teste && 'teste' || 'coleta' }}
